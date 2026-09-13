@@ -27,6 +27,18 @@ go.work.sum
 # env file
 .env
 
+# Go compiled binaries
+deploy-ui
+implode
+server
+
+# Runtime workspaces created by Implode
+workspace/
+
+# Frontend build output
+frontend/dist
+frontend/dist-ssr
+
 # Editor/IDE
 # .idea/
 # .vscode/
