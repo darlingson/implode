@@ -30,6 +30,7 @@ go.work.sum
 # Go compiled binaries
 deploy-ui
 implode
+server
 
 # Runtime workspaces created by Implode
 workspace/
