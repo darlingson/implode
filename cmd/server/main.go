@@ -20,6 +20,12 @@ import (
 
 func main() {
 	dist, err := fs.Sub(frontend.Dist, "dist")
+	fs.WalkDir(dist, ".", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			slog.Info("embedded file", "path", p)
+		}
+		return nil
+	})
 	if err != nil {
 		slog.Error("failed to get dist fs", "error", err)
 		os.Exit(1)
