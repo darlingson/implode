@@ -1,0 +1,47 @@
+/**
+ * Implode ↔ Porsche Design System v4 bridge.
+ *
+ * PDS global styles + Tailwind theme are imported in `index.css`.
+ * This file only adds Implode-scoped custom properties that alias PDS
+ * tokens, so components reference `--implode-*` and stay theme-aware
+ * (light/dark via PDS `light-dark()` + `.scheme-*` classes).
+ */
+:root {
+  --implode-canvas: light-dark(#fff, hsl(225 66.7% 1.2%));
+  --implode-surface: light-dark(hsl(240 10% 95%), hsl(240 2% 10%));
+  --implode-frosted: light-dark(
+    hsl(240 5% 70% / 0.148),
+    hsl(240 2% 43% / 0.228)
+  );
+  --implode-text: light-dark(hsl(225 66.7% 1.2%), hsl(225 100% 99%));
+  --implode-text-soft: light-dark(
+    hsl(240 7.1% 11% / 0.7),
+    hsl(240 12.5% 96.9% / 0.67)
+  );
+  --implode-focus: #1a44ea;
+
+  --implode-radius-control: 12px; /* PDS radiusXl */
+  --implode-radius-container: 24px; /* PDS radius3Xl */
+  --implode-shadow-card: 0px 4px 16px rgba(0, 0, 0, 0.16); /* PDS shadowMd */
+
+  --implode-font: "Porsche Next", "Arial Narrow", Arial, "Heiti SC", SimHei,
+    sans-serif;
+
+  --implode-log-bg: light-dark(#0e0e12, #060608);
+  --implode-log-text: #f2f2f3;
+  --implode-log-dim: rgba(242, 242, 243, 0.62);
+  --implode-log-accent: #1a44ea;
+}
+
+.implode-log-panel {
+  background: var(--implode-log-bg);
+  color: var(--implode-log-text);
+  border-radius: var(--implode-radius-container);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.implode-log-panel ::selection {
+  background: var(--implode-log-accent);
+  color: #fff;
+}
