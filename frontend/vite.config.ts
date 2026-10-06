@@ -12,6 +12,24 @@ import {
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    // Fixed port so the workflow below stays stable.
+    port: 5173,
+    strictPort: true,
+    // Proxy backend routes to the Go server so `pnpm dev` gets live
+    // API responses with Vite HMR — no Go rebuild/restart needed for
+    // frontend changes. Go reads PORT from the env (default 8080).
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.PORT ?? "8080"}`,
+        changeOrigin: true,
+      },
+      "/healthz": {
+        target: `http://localhost:${process.env.PORT ?? "8080"}`,
+        changeOrigin: true,
+      },
+    },
+  },
   css: {
     transformer: "lightningcss",
     // disables broken light-dark() polyfill, see PDS v4 docs
