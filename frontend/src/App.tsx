@@ -304,14 +304,6 @@ export function App() {
 
         <PDivider />
         <footer className="flex flex-wrap items-center justify-between gap-static-sm pb-fluid-md">
-          <PText color="contrast-medium" size="x-small">
-            Frontend stub · Porsche Design System v4 · backend contract:{" "}
-            pending → cloning → detecting → building → running → succeeded /
-            failed
-          </PText>
-          <PText color="contrast-medium" size="x-small">
-            Tokens: src/tokens · Mocks: src/mocks
-          </PText>
         </footer>
       </main>
     </div>
