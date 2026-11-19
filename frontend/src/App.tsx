@@ -1,18 +1,19 @@
 import { useStyletron } from "baseui";
 import { Button } from "baseui/button";
+import { Drawer, ANCHOR } from "baseui/drawer";
 import { Notification } from "baseui/notification";
-import { Tab, Tabs } from "baseui/tabs-motion";
 import { Tag } from "baseui/tag";
 import {
   DisplaySmall,
+  DisplayXSmall,
   LabelMedium,
+  LabelSmall,
   LabelXSmall,
   ParagraphSmall,
 } from "baseui/typography";
 import { useMemo, useState } from "react";
 import { AppsMonitor } from "@/components/AppsMonitor";
 import { DeployForm } from "@/components/DeployForm";
-import { LogPanel } from "@/components/LogPanel";
 import { PipelineView } from "@/components/PipelineView";
 import {
   makeLog,
@@ -22,34 +23,47 @@ import {
   type DeployRequest,
   type Deployment,
 } from "@/mocks/deployments";
-import { healthTagKind, statusTagKind } from "@/tokens/implode";
+import { statusTagKind } from "@/tokens/implode";
 
-type View = "deploy" | "pipeline" | "apps";
-const VIEWS: View[] = ["deploy", "pipeline", "apps"];
+type Page = "deployments" | "applications";
 
 let idSeq = 100;
 
 export function App() {
   const [css, theme] = useStyletron();
-  const [activeKey, setActiveKey] = useState<string>("deploy");
-  const view = activeKey as View;
 
+  // Top-level page (the two persistent nav destinations)
+  const [page, setPage] = useState<Page>("deployments");
+
+  // Which deployment is open in the detail view (null = list)
+  const [detailId, setDetailId] = useState<string | null>(null);
+
+  // Deploy drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Data
   const [deployments, setDeployments] = useState<Deployment[]>(() => [
     seedFailedDeployment(),
   ]);
   const [apps, setApps] = useState<DeployedApp[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const active = useMemo(
-    () => deployments.find((d) => d.id === activeId) ?? null,
-    [deployments, activeId],
+  const detail = useMemo(
+    () => deployments.find((d) => d.id === detailId) ?? null,
+    [deployments, detailId],
   );
+
+  // ── helpers ──────────────────────────────────────────────────────
 
   const copyUrl = async (url: string) => {
     try { await navigator.clipboard.writeText(url); } catch { /* ok */ }
     setNotice(`Copied: ${url}`);
+  };
+
+  const openDetail = (id: string) => {
+    setDetailId(id);
+    setPage("deployments"); // ensure we're on the right page
   };
 
   const startDeploy = (req: DeployRequest) => {
@@ -71,10 +85,12 @@ export function App() {
       ],
     };
     setDeployments((prev) => [dep, ...prev]);
-    setActiveId(id);
     setBusy(true);
-    setActiveKey("pipeline");
-    window.setTimeout(() => setBusy(false), 600);
+    window.setTimeout(() => {
+      setBusy(false);
+      setDrawerOpen(false);
+      openDetail(id);
+    }, 400);
   };
 
   const finishDeploy = (done: Deployment) => {
@@ -105,15 +121,26 @@ export function App() {
     );
   };
 
-  /* ── shared style snippets pulled from the theme ── */
+  // ── shared style values ──────────────────────────────────────────
+
+  const navLinkStyle = (active: boolean) => css({
+    background: "none", border: "none", cursor: "pointer",
+    fontFamily: "inherit", fontSize: "14px", fontWeight: "500",
+    padding: `${theme.sizing.scale300} 0`,
+    color: active ? theme.colors.contentPrimary : theme.colors.contentSecondary,
+    borderBottom: active ? `2px solid ${theme.colors.contentPrimary}` : "2px solid transparent",
+    textDecoration: "none",
+    transition: "color 0.15s, border-color 0.15s",
+    ":hover": { color: theme.colors.contentPrimary },
+  });
+
   const card = css({
     backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: theme.borders.radius400,
     border: `1px solid ${theme.colors.borderOpaque}`,
-    padding: theme.sizing.scale700,
-    display: "grid",
-    gap: theme.sizing.scale500,
   });
+
+  // ── render ───────────────────────────────────────────────────────
 
   return (
     <div className={css({
@@ -122,67 +149,93 @@ export function App() {
       color: theme.colors.contentPrimary,
     })}>
 
-      {/* ── Top bar ─────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────── */}
       <header className={css({
         borderBottom: `1px solid ${theme.colors.borderOpaque}`,
         backgroundColor: theme.colors.backgroundPrimary,
+        position: "sticky", top: "0", zIndex: "100",
       })}>
         <div className={css({
-          maxWidth: "1200px",
-          margin: "0 auto",
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: theme.sizing.scale400,
-          padding: `${theme.sizing.scale600} ${theme.sizing.scale800}`,
+          maxWidth: "1200px", margin: "0 auto",
+          display: "flex", alignItems: "center",
+          gap: theme.sizing.scale700,
+          padding: `0 ${theme.sizing.scale800}`,
+          height: "56px",
         })}>
-          {/* Wordmark */}
-          <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale500 })}>
-            <div className={css({
-              width: "32px", height: "32px",
-              backgroundColor: theme.colors.contentPrimary,
-              borderRadius: theme.borders.radius300,
-              display: "flex", alignItems: "center", justifyContent: "center",
+
+          {/* Wordmark — always a link back to home */}
+          <button
+            onClick={() => { setPage("deployments"); setDetailId(null); }}
+            className={css({
+              display: "flex", alignItems: "center", gap: theme.sizing.scale400,
+              background: "none", border: "none", cursor: "pointer", padding: 0,
               flexShrink: "0",
+            })}
+          >
+            <div className={css({
+              width: "28px", height: "28px",
+              backgroundColor: theme.colors.contentPrimary,
+              borderRadius: "6px",
+              display: "flex", alignItems: "center", justifyContent: "center",
             })}>
               <span className={css({
                 color: theme.colors.backgroundPrimary,
-                fontWeight: "700", fontSize: "17px", lineHeight: "1",
+                fontWeight: "800", fontSize: "15px", lineHeight: "1",
               })}>I</span>
             </div>
-            <div>
-              <LabelMedium overrides={{ Block: { style: { fontWeight: "700", letterSpacing: "-0.01em", margin: 0 } } }}>
-                Implode
-              </LabelMedium>
-              <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, margin: 0 } } }}>
-                Self-hosted .NET deployments
-              </LabelXSmall>
-            </div>
-            <Tag kind="neutral" closeable={false}
-              overrides={{ Root: { style: { backgroundColor: theme.colors.backgroundTertiary } } }}
-            >
-              stub
-            </Tag>
-          </div>
+            <LabelMedium overrides={{ Block: { style: { fontWeight: "700", letterSpacing: "-0.01em", margin: 0 } } }}>
+              Implode
+            </LabelMedium>
+          </button>
 
-          {/* Backend link */}
-          <a href="http://localhost:8080/healthz" className={css({
-            fontSize: "13px", color: theme.colors.accent,
-            textDecoration: "none", fontWeight: "500",
-            ":hover": { textDecoration: "underline" },
-          })}>
-            /healthz
-          </a>
+          {/* Nav links */}
+          <nav className={css({ display: "flex", alignItems: "stretch", gap: theme.sizing.scale700, flex: "1", height: "100%" })}>
+            <button
+              className={navLinkStyle(page === "deployments")}
+              onClick={() => { setPage("deployments"); setDetailId(null); }}
+            >
+              Deployments
+            </button>
+            <button
+              className={navLinkStyle(page === "applications")}
+              onClick={() => setPage("applications")}
+            >
+              Applications
+              {apps.length > 0 && (
+                <span className={css({
+                  marginLeft: theme.sizing.scale200,
+                  backgroundColor: theme.colors.backgroundTertiary,
+                  color: theme.colors.contentSecondary,
+                  borderRadius: "10px",
+                  padding: "1px 7px",
+                  fontSize: "11px", fontWeight: "600",
+                })}>
+                  {apps.length}
+                </span>
+              )}
+            </button>
+          </nav>
+
+          {/* Actions */}
+          <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale400, marginLeft: "auto" })}>
+            <a href="http://localhost:8080/healthz" className={css({
+              fontSize: "12px", color: theme.colors.contentTertiary,
+              textDecoration: "none", fontFamily: "ui-monospace, monospace",
+              ":hover": { color: theme.colors.contentPrimary },
+            })}>
+              /healthz
+            </a>
+            <Button size="compact" onClick={() => setDrawerOpen(true)}>
+              New deployment
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* ── Notice banner ───────────────────────────────────────── */}
+      {/* ── Global notice ───────────────────────────────────────── */}
       {notice && (
         <div className={css({ maxWidth: "1200px", margin: "0 auto", padding: `${theme.sizing.scale400} ${theme.sizing.scale800} 0` })}>
-          <Notification
-            kind="positive" closeable
-            onClose={() => setNotice(null)}
+          <Notification kind="positive" closeable onClose={() => setNotice(null)}
             overrides={{ Body: { style: { width: "100%", fontFamily: "inherit" } } }}
           >
             {notice}
@@ -190,147 +243,177 @@ export function App() {
         </div>
       )}
 
-      {/* ── Nav tabs ────────────────────────────────────────────── */}
-      <div className={css({
-        maxWidth: "1200px", margin: "0 auto",
-        padding: `0 ${theme.sizing.scale800}`,
-        borderBottom: `1px solid ${theme.colors.borderOpaque}`,
-      })}>
-        <Tabs
-          activeKey={activeKey}
-          onChange={({ activeKey: k }) => setActiveKey(String(k))}
-          activateOnFocus
-          overrides={{
-            TabList: { style: { gap: theme.sizing.scale600 } },
-          }}
-        >
-          {VIEWS.map((v) => (
-            <Tab key={v} title={
-              v === "pipeline" ? `Pipeline${active ? ` · ${active.repoSlug}` : ""}`
-              : v === "apps" ? `Applications (${apps.length})`
-              : "New deployment"
-            } />
-          ))}
-        </Tabs>
-      </div>
-
-      {/* ── Main ────────────────────────────────────────────────── */}
+      {/* ── Main content ────────────────────────────────────────── */}
       <main className={css({
         maxWidth: "1200px", margin: "0 auto",
-        display: "grid", gap: theme.sizing.scale700,
-        padding: `${theme.sizing.scale700} ${theme.sizing.scale800}`,
+        padding: `${theme.sizing.scale800} ${theme.sizing.scale800}`,
       })}>
 
-        {/* Deploy view */}
-        {view === "deploy" && (
-          <>
-            {deployments.length === 0 && (
-              <div className={css({
-                ...JSON.parse(JSON.stringify({
-                  backgroundColor: theme.colors.backgroundSecondary,
-                  borderRadius: theme.borders.radius400,
-                  border: `1px solid ${theme.colors.borderOpaque}`,
-                  padding: `${theme.sizing.scale1200} ${theme.sizing.scale800}`,
-                  textAlign: "center",
-                  display: "grid",
-                  gap: theme.sizing.scale400,
-                }))
-              })}>
-                <DisplaySmall>No repositories yet</DisplaySmall>
-                <ParagraphSmall color={theme.colors.contentSecondary}>
-                  Paste a .NET Git URL below and Implode takes it from clone to running container.
-                </ParagraphSmall>
+        {/* DEPLOYMENTS page */}
+        {page === "deployments" && (
+          detailId && detail ? (
+            /* ── Detail view ── */
+            <div className={css({ display: "grid", gap: theme.sizing.scale600 })}>
+              {/* Back breadcrumb */}
+              <div>
+                <button
+                  onClick={() => setDetailId(null)}
+                  className={css({
+                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: theme.sizing.scale200,
+                    color: theme.colors.contentTertiary, fontFamily: "inherit",
+                    fontSize: "13px", padding: 0,
+                    ":hover": { color: theme.colors.contentPrimary },
+                  })}
+                >
+                  ← Deployments
+                </button>
               </div>
-            )}
-
-            <DeployForm busy={busy} onDeploy={startDeploy} />
-
-            {/* History */}
-            <section>
-              <LabelMedium overrides={{ Block: { style: { fontWeight: "700", marginBottom: theme.sizing.scale400 } } }}>
-                Deployment history
-              </LabelMedium>
-              <div className={css({ display: "grid", gap: theme.sizing.scale400 })}>
-                {deployments.map((d) => (
-                  <article key={d.id} className={card}>
-                    <div className={css({
-                      display: "flex", flexWrap: "wrap",
-                      alignItems: "flex-start", justifyContent: "space-between",
-                      gap: theme.sizing.scale400,
-                    })}>
-                      <div>
-                        <LabelMedium overrides={{ Block: { style: { fontWeight: "600", margin: 0 } } }}>
-                          {d.repoSlug}
-                        </LabelMedium>
-                        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, margin: `${theme.sizing.scale100} 0 0` } } }}>
-                          {d.branch} · {d.createdAt} · {d.imageTag}
-                        </LabelXSmall>
-                      </div>
-                      <div className={css({ display: "flex", gap: theme.sizing.scale200, flexWrap: "wrap" })}>
-                        <Tag kind={statusTagKind[d.status]} closeable={false}>{d.status}</Tag>
-                        <Tag kind={healthTagKind[d.health]} closeable={false}>{d.health}</Tag>
-                      </div>
-                    </div>
-
-                    {d.status === "failed" && (
-                      <Notification kind="negative"
-                        overrides={{ Body: { style: { width: "100%", fontFamily: "inherit" } } }}
-                      >
-                        Failed in <strong>{d.failingStage ?? "pipeline"}</strong> — last {d.logs.length} log lines retained.
-                      </Notification>
-                    )}
-
-                    <LogPanel lines={d.logs.slice(-4)} minHeight="6rem" />
-
-                    <div className={css({ display: "flex", gap: theme.sizing.scale300, flexWrap: "wrap" })}>
-                      <Button size="compact" kind="secondary"
-                        onClick={() => { setActiveId(d.id); setActiveKey("pipeline"); }}
-                      >
-                        Open pipeline
-                      </Button>
-                      <Button size="compact" kind="secondary"
-                        onClick={() => setActiveKey("apps")}
-                      >
-                        View applications
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* Pipeline view */}
-        {view === "pipeline" && (
-          active ? (
-            <PipelineView key={active.id} deployment={active} onDone={finishDeploy} onCopyUrl={copyUrl} />
+              <PipelineView
+                key={detail.id}
+                deployment={detail}
+                onDone={finishDeploy}
+                onCopyUrl={copyUrl}
+              />
+            </div>
           ) : (
-            <div className={css({
-              backgroundColor: theme.colors.backgroundSecondary,
-              borderRadius: theme.borders.radius400,
-              border: `1px solid ${theme.colors.borderOpaque}`,
-              padding: `${theme.sizing.scale1200} ${theme.sizing.scale800}`,
-              textAlign: "center",
-              display: "grid",
-              gap: theme.sizing.scale400,
-            })}>
-              <DisplaySmall>No active deployment</DisplaySmall>
-              <ParagraphSmall color={theme.colors.contentSecondary}>
-                Start from the deploy form — the live pipeline appears here.
-              </ParagraphSmall>
-              <div className={css({ display: "flex", justifyContent: "center", marginTop: theme.sizing.scale300 })}>
-                <Button onClick={() => setActiveKey("deploy")}>New deployment</Button>
+            /* ── Deployments list ── */
+            <div className={css({ display: "grid", gap: theme.sizing.scale600 })}>
+              {/* Page header */}
+              <div className={css({
+                display: "flex", alignItems: "center",
+                justifyContent: "space-between", flexWrap: "wrap",
+                gap: theme.sizing.scale400,
+              })}>
+                <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
+                  Deployments
+                </DisplayXSmall>
               </div>
+
+              {/* Empty state */}
+              {deployments.length === 0 ? (
+                <div className={css({
+                  ...Object.fromEntries(Object.entries({
+                    backgroundColor: theme.colors.backgroundSecondary,
+                    border: `1px solid ${theme.colors.borderOpaque}`,
+                    borderRadius: theme.borders.radius400,
+                    padding: `${theme.sizing.scale1600} ${theme.sizing.scale800}`,
+                    textAlign: "center",
+                    display: "grid",
+                    gap: theme.sizing.scale400,
+                  }))
+                })}>
+                  <DisplaySmall>No deployments yet</DisplaySmall>
+                  <ParagraphSmall color={theme.colors.contentSecondary}>
+                    Click <strong>New deployment</strong> to deploy your first .NET repository.
+                  </ParagraphSmall>
+                </div>
+              ) : (
+                /* Deployment rows */
+                <div className={card}>
+                  {deployments.map((d, i) => (
+                    <div
+                      key={d.id}
+                      className={css({
+                        display: "flex", flexWrap: "wrap",
+                        alignItems: "center", justifyContent: "space-between",
+                        gap: theme.sizing.scale400,
+                        padding: `${theme.sizing.scale500} ${theme.sizing.scale600}`,
+                        borderBottom: i < deployments.length - 1
+                          ? `1px solid ${theme.colors.borderOpaque}` : "none",
+                        cursor: "pointer",
+                        ":hover": { backgroundColor: theme.colors.backgroundTertiary },
+                        transition: "background-color 0.1s",
+                        borderRadius: i === 0 ? `${theme.borders.radius400} ${theme.borders.radius400} 0 0`
+                          : i === deployments.length - 1 ? `0 0 ${theme.borders.radius400} ${theme.borders.radius400}`
+                          : "0",
+                      })}
+                      onClick={() => openDetail(d.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === "Enter" && openDetail(d.id)}
+                    >
+                      {/* Left: identity */}
+                      <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale500, minWidth: 0 })}>
+                        {/* Status dot */}
+                        <div className={css({
+                          width: "8px", height: "8px", borderRadius: "50%", flexShrink: "0",
+                          backgroundColor:
+                            d.status === "succeeded" ? theme.colors.backgroundPositive
+                            : d.status === "failed" ? theme.colors.backgroundNegative
+                            : d.status === "building" || d.status === "cloning" ? theme.colors.accent
+                            : theme.colors.backgroundTertiary,
+                        })} />
+                        <div className={css({ minWidth: 0 })}>
+                          <LabelMedium overrides={{ Block: { style: { fontWeight: "600", margin: 0 } } }}>
+                            {d.repoSlug}
+                          </LabelMedium>
+                          <LabelXSmall overrides={{ Block: { style: {
+                            color: theme.colors.contentTertiary, margin: 0,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          } } }}>
+                            {d.repoUrl} · {d.branch}
+                          </LabelXSmall>
+                        </div>
+                      </div>
+
+                      {/* Right: metadata + status */}
+                      <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale500, flexShrink: "0" })}>
+                        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
+                          {d.createdAt}
+                        </LabelXSmall>
+                        <Tag kind={statusTagKind[d.status]} closeable={false}>{d.status}</Tag>
+                        {d.status === "failed" && (
+                          <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentNegative } } }}>
+                            failed in {d.failingStage}
+                          </LabelXSmall>
+                        )}
+                        <LabelSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
+                          →
+                        </LabelSmall>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         )}
 
-        {/* Apps view */}
-        {view === "apps" && (
-          <AppsMonitor apps={apps} deployments={deployments} onAction={appAction} onCopyUrl={copyUrl} />
+        {/* APPLICATIONS page */}
+        {page === "applications" && (
+          <AppsMonitor
+            apps={apps}
+            deployments={deployments}
+            onAction={appAction}
+            onCopyUrl={copyUrl}
+          />
         )}
       </main>
+
+      {/* ── New deployment Drawer ───────────────────────────────── */}
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        anchor={ANCHOR.right}
+        overrides={{
+          Root: { style: { zIndex: "200" } },
+          DrawerBody: { style: { padding: "0", margin: "0" } },
+          DrawerContainer: { style: { width: "520px", maxWidth: "95vw" } },
+        }}
+      >
+        <div className={css({ padding: theme.sizing.scale800, display: "grid", gap: theme.sizing.scale600 })}>
+          <div>
+            <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
+              New deployment
+            </DisplayXSmall>
+            <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, marginTop: theme.sizing.scale200 } } }}>
+              Paste a Git repository URL and Implode handles the rest.
+            </LabelXSmall>
+          </div>
+          <DeployForm busy={busy} onDeploy={startDeploy} inDrawer />
+        </div>
+      </Drawer>
     </div>
   );
 }

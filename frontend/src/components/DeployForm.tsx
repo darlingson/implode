@@ -5,21 +5,23 @@ import { FormControl } from "baseui/form-control";
 import { Input } from "baseui/input";
 import { Notification } from "baseui/notification";
 import { Textarea } from "baseui/textarea";
-import { DisplayXSmall, LabelMedium, LabelXSmall } from "baseui/typography";
+import { LabelMedium, LabelXSmall } from "baseui/typography";
 import { isPlausibleGitUrl, parseEnvText, type DeployRequest } from "@/mocks/deployments";
 
 export function DeployForm({
   busy,
   onDeploy,
+  inDrawer = false,
 }: {
   busy: boolean;
   onDeploy: (req: DeployRequest) => void;
+  inDrawer?: boolean;
 }) {
   const [css, theme] = useStyletron();
-  const [repoUrl, setRepoUrl] = useState("https://github.com/example/my-dotnet-app.git");
-  const [subfolder, setSubfolder] = useState("src/MyApp");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [subfolder, setSubfolder] = useState("");
   const [branch, setBranch] = useState("main");
-  const [envText, setEnvText] = useState("ASPNETCORE_ENVIRONMENT=Production\n");
+  const [envText, setEnvText] = useState("");
   const [touched, setTouched] = useState(false);
 
   const urlValid = isPlausibleGitUrl(repoUrl);
@@ -40,34 +42,32 @@ export function DeployForm({
         });
       }}
       className={css({
-        backgroundColor: theme.colors.backgroundSecondary,
-        border: `1px solid ${theme.colors.borderOpaque}`,
-        borderRadius: theme.borders.radius400,
-        padding: theme.sizing.scale800,
         display: "grid",
         gap: theme.sizing.scale600,
+        // When not in a drawer, give it a card treatment
+        ...(!inDrawer ? {
+          backgroundColor: theme.colors.backgroundSecondary,
+          border: `1px solid ${theme.colors.borderOpaque}`,
+          borderRadius: theme.borders.radius400,
+          padding: theme.sizing.scale800,
+        } : {}),
       })}
     >
-      {/* Header */}
-      <div>
-        <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
-          Deploy a .NET repository
-        </DisplayXSmall>
-        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, marginTop: theme.sizing.scale200 } } }}>
-          Clone → detect → containerize → run. Stubbed until the Go backend lands.
-        </LabelXSmall>
-      </div>
-
       {/* Repo URL */}
       <FormControl
-        label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Git repository URL</LabelMedium>}
+        label={
+          <LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>
+            Repository URL
+          </LabelMedium>
+        }
         error={showError ? "Enter an http(s) or SSH Git URL." : null}
       >
         <Input
           name="repoUrl"
-          placeholder="https://github.com/acme/my-dotnet-app.git"
+          placeholder="https://github.com/acme/my-app.git"
           value={repoUrl}
           required
+          autoFocus={inDrawer}
           error={showError}
           onChange={(e) => setRepoUrl(e.currentTarget.value)}
           overrides={{ Input: { style: { fontFamily: "inherit" } } }}
@@ -77,12 +77,16 @@ export function DeployForm({
       {/* Subfolder + Branch — side by side */}
       <div className={css({
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: theme.sizing.scale600,
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: theme.sizing.scale500,
       })}>
         <FormControl
-          label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Project subfolder</LabelMedium>}
-          caption="Relative path when the .csproj is not at the repo root."
+          label={
+            <LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>
+              Project subfolder
+            </LabelMedium>
+          }
+          caption="Leave empty if .csproj is at the repo root."
         >
           <Input
             name="subfolder"
@@ -94,7 +98,11 @@ export function DeployForm({
         </FormControl>
 
         <FormControl
-          label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Branch</LabelMedium>}
+          label={
+            <LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>
+              Branch
+            </LabelMedium>
+          }
         >
           <Input
             name="branch"
@@ -113,7 +121,7 @@ export function DeployForm({
             Environment variables{envCount > 0 ? ` (${envCount})` : ""}
           </LabelMedium>
         }
-        caption="One KEY=VALUE per line. Passed as ENV + docker -e at runtime."
+        caption="One KEY=VALUE per line."
       >
         <Textarea
           name="envVars"
@@ -121,7 +129,9 @@ export function DeployForm({
           value={envText}
           rows={4}
           onChange={(e) => setEnvText(e.currentTarget.value)}
-          overrides={{ Input: { style: { fontFamily: "ui-monospace, monospace", fontSize: "13px" } } }}
+          overrides={{
+            Input: { style: { fontFamily: "ui-monospace, monospace", fontSize: "13px" } },
+          }}
         />
       </FormControl>
 
@@ -129,17 +139,17 @@ export function DeployForm({
         <Notification kind="negative"
           overrides={{ Body: { style: { width: "100%", fontFamily: "inherit" } } }}
         >
-          Stub validation only accepts http(s) or SSH Git URLs.
+          Enter a valid http(s) or SSH Git URL.
         </Notification>
       )}
 
-      {/* Submit row */}
+      {/* Submit */}
       <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale400 })}>
         <Button type="submit" isLoading={busy} disabled={busy}>
-          {busy ? "Deploying…" : "Deploy"}
+          Deploy
         </Button>
         <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
-          Pipeline is simulated locally until the backend connects.
+          Stubbed locally until the backend connects.
         </LabelXSmall>
       </div>
     </form>
