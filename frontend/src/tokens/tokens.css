@@ -1,47 +1,66 @@
 /**
- * Implode ↔ Porsche Design System v4 bridge.
+ * Implode global CSS.
  *
- * PDS global styles + Tailwind theme are imported in `index.css`.
- * This file only adds Implode-scoped custom properties that alias PDS
- * tokens, so components reference `--implode-*` and stay theme-aware
- * (light/dark via PDS `light-dark()` + `.scheme-*` classes).
+ * Base Web (baseui) owns ALL component styling via Styletron.
+ * This file only sets the page-level canvas and the terminal log
+ * panel, which live outside of baseui's component scope.
+ *
+ * Color values match Base Web's LightTheme primitives exactly:
+ *   backgroundPrimary  #FFFFFF
+ *   backgroundSecondary #F6F6F6
+ *   contentPrimary     #000000
+ *   borderOpaque       #E2E2E2
+ *   accent             #276EF1
  */
-:root {
-  --implode-canvas: light-dark(#fff, hsl(225 66.7% 1.2%));
-  --implode-surface: light-dark(hsl(240 10% 95%), hsl(240 2% 10%));
-  --implode-frosted: light-dark(
-    hsl(240 5% 70% / 0.148),
-    hsl(240 2% 43% / 0.228)
-  );
-  --implode-text: light-dark(hsl(225 66.7% 1.2%), hsl(225 100% 99%));
-  --implode-text-soft: light-dark(
-    hsl(240 7.1% 11% / 0.7),
-    hsl(240 12.5% 96.9% / 0.67)
-  );
-  --implode-focus: #1a44ea;
 
-  --implode-radius-control: 12px; /* PDS radiusXl */
-  --implode-radius-container: 24px; /* PDS radius3Xl */
-  --implode-shadow-card: 0px 4px 16px rgba(0, 0, 0, 0.16); /* PDS shadowMd */
-
-  --implode-font: "Porsche Next", "Arial Narrow", Arial, "Heiti SC", SimHei,
-    sans-serif;
-
-  --implode-log-bg: light-dark(#0e0e12, #060608);
-  --implode-log-text: #f2f2f3;
-  --implode-log-dim: rgba(242, 242, 243, 0.62);
-  --implode-log-accent: #1a44ea;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+html {
+  /* Inter as the closest freely-licensed substitute for Uber Move */
+  font-family: "Figtree Variable", "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 14px; /* Uber's base — scale steps from here */
+  -webkit-font-smoothing: antialiased;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* ── Terminal log panel ─────────────────────────────────────────── */
+/* Intentionally dark regardless of host theme — it's a terminal. */
 .implode-log-panel {
-  background: var(--implode-log-bg);
-  color: var(--implode-log-text);
-  border-radius: var(--implode-radius-container);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: #0e0e10;
+  color: #f2f2f3;
+  border-radius: 8px;
+  border: 1px solid #1e1e22;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
 }
+
+.implode-log-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.implode-log-dim   { color: rgba(242, 242, 243, 0.45); }
+.implode-log-build { color: #f2f2f3; }
+.implode-log-runtime { color: #6ee7b7; }
+.implode-log-system  { color: rgba(242, 242, 243, 0.45); }
 
 .implode-log-panel ::selection {
-  background: var(--implode-log-accent);
+  background: #276EF1;
   color: #fff;
 }

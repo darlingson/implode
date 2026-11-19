@@ -1,25 +1,12 @@
 import { useState } from "react";
-import {
-  PButton,
-  PHeading,
-  PInlineNotification,
-  PInputText,
-  PInputUrl,
-  PText,
-  PTextarea,
-} from "@porsche-design-system/components-react";
-import {
-  isPlausibleGitUrl,
-  parseEnvText,
-  type DeployRequest,
-} from "@/mocks/deployments";
-
-function readValue(e: unknown): string {
-  const detail = (e as CustomEvent<{ value?: string }>).detail;
-  if (typeof detail?.value === "string") return detail.value;
-  const target = (e as { target?: HTMLInputElement | HTMLTextAreaElement }).target;
-  return target?.value ?? "";
-}
+import { useStyletron } from "baseui";
+import { Button } from "baseui/button";
+import { FormControl } from "baseui/form-control";
+import { Input } from "baseui/input";
+import { Notification } from "baseui/notification";
+import { Textarea } from "baseui/textarea";
+import { DisplayXSmall, LabelMedium, LabelXSmall } from "baseui/typography";
+import { isPlausibleGitUrl, parseEnvText, type DeployRequest } from "@/mocks/deployments";
 
 export function DeployForm({
   busy,
@@ -28,6 +15,7 @@ export function DeployForm({
   busy: boolean;
   onDeploy: (req: DeployRequest) => void;
 }) {
+  const [css, theme] = useStyletron();
   const [repoUrl, setRepoUrl] = useState("https://github.com/example/my-dotnet-app.git");
   const [subfolder, setSubfolder] = useState("src/MyApp");
   const [branch, setBranch] = useState("main");
@@ -40,7 +28,6 @@ export function DeployForm({
 
   return (
     <form
-      className="grid gap-fluid-sm rounded-3xl bg-surface p-fluid-md"
       onSubmit={(e) => {
         e.preventDefault();
         setTouched(true);
@@ -52,69 +39,108 @@ export function DeployForm({
           envVars: parseEnvText(envText),
         });
       }}
+      className={css({
+        backgroundColor: theme.colors.backgroundSecondary,
+        border: `1px solid ${theme.colors.borderOpaque}`,
+        borderRadius: theme.borders.radius400,
+        padding: theme.sizing.scale800,
+        display: "grid",
+        gap: theme.sizing.scale600,
+      })}
     >
+      {/* Header */}
       <div>
-        <PHeading size="large" tag="h2">
+        <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
           Deploy a .NET repository
-        </PHeading>
-        <PText color="contrast-medium">
-          Clone → detect → containerize → run. Stubbed end to end until the Go
-          backend lands.
-        </PText>
+        </DisplayXSmall>
+        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, marginTop: theme.sizing.scale200 } } }}>
+          Clone → detect → containerize → run. Stubbed until the Go backend lands.
+        </LabelXSmall>
       </div>
 
-      <PInputUrl
-        name="repoUrl"
-        label="Git repository URL"
-        placeholder="https://github.com/acme/my-dotnet-app.git"
-        value={repoUrl}
-        required
-        state={showError ? "error" : "none"}
-        message={showError ? "Enter an http(s) or SSH Git URL." : ""}
-        onInput={(e: unknown) => setRepoUrl(readValue(e))}
-      />
+      {/* Repo URL */}
+      <FormControl
+        label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Git repository URL</LabelMedium>}
+        error={showError ? "Enter an http(s) or SSH Git URL." : null}
+      >
+        <Input
+          name="repoUrl"
+          placeholder="https://github.com/acme/my-dotnet-app.git"
+          value={repoUrl}
+          required
+          error={showError}
+          onChange={(e) => setRepoUrl(e.currentTarget.value)}
+          overrides={{ Input: { style: { fontFamily: "inherit" } } }}
+        />
+      </FormControl>
 
-      <div className="grid gap-fluid-sm sm:grid-cols-2">
-        <PInputText
-          name="subfolder"
-          label="Project subfolder (optional)"
-          placeholder="src/MyApp"
-          value={subfolder}
-          description="Relative path when the .csproj is not at the repo root."
-          onInput={(e: unknown) => setSubfolder(readValue(e))}
-        />
-        <PInputText
-          name="branch"
-          label="Branch"
-          placeholder="main"
-          value={branch}
-          onInput={(e: unknown) => setBranch(readValue(e))}
-        />
+      {/* Subfolder + Branch — side by side */}
+      <div className={css({
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: theme.sizing.scale600,
+      })}>
+        <FormControl
+          label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Project subfolder</LabelMedium>}
+          caption="Relative path when the .csproj is not at the repo root."
+        >
+          <Input
+            name="subfolder"
+            placeholder="src/MyApp"
+            value={subfolder}
+            onChange={(e) => setSubfolder(e.currentTarget.value)}
+            overrides={{ Input: { style: { fontFamily: "inherit" } } }}
+          />
+        </FormControl>
+
+        <FormControl
+          label={<LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>Branch</LabelMedium>}
+        >
+          <Input
+            name="branch"
+            placeholder="main"
+            value={branch}
+            onChange={(e) => setBranch(e.currentTarget.value)}
+            overrides={{ Input: { style: { fontFamily: "inherit" } } }}
+          />
+        </FormControl>
       </div>
 
-      <PTextarea
-        name="envVars"
-        label={`Environment variables (${envCount})`}
-        placeholder={"ASPNETCORE_ENVIRONMENT=Production\nDATABASE_URL=…"}
-        description="One KEY=VALUE per line. Passed as ENV + docker -e at run."
-        value={envText}
-        rows={4}
-        onInput={(e: unknown) => setEnvText(readValue(e))}
-      />
+      {/* Env vars */}
+      <FormControl
+        label={
+          <LabelMedium overrides={{ Block: { style: { fontWeight: "600" } } }}>
+            Environment variables{envCount > 0 ? ` (${envCount})` : ""}
+          </LabelMedium>
+        }
+        caption="One KEY=VALUE per line. Passed as ENV + docker -e at runtime."
+      >
+        <Textarea
+          name="envVars"
+          placeholder={"ASPNETCORE_ENVIRONMENT=Production\nDATABASE_URL=…"}
+          value={envText}
+          rows={4}
+          onChange={(e) => setEnvText(e.currentTarget.value)}
+          overrides={{ Input: { style: { fontFamily: "ui-monospace, monospace", fontSize: "13px" } } }}
+        />
+      </FormControl>
 
-      {!urlValid && touched ? (
-        <PInlineNotification heading="Check the repository URL" state="error">
+      {showError && (
+        <Notification kind="negative"
+          overrides={{ Body: { style: { width: "100%", fontFamily: "inherit" } } }}
+        >
           Stub validation only accepts http(s) or SSH Git URLs.
-        </PInlineNotification>
-      ) : null}
+        </Notification>
+      )}
 
-      <div className="flex flex-wrap items-center gap-static-sm">
-        <PButton type="submit" loading={busy} disabled={busy} icon="arrow-right">
+      {/* Submit row */}
+      <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale400 })}>
+        <Button type="submit" isLoading={busy} disabled={busy}>
           {busy ? "Deploying…" : "Deploy"}
-        </PButton>
-        <PText color="contrast-medium" size="x-small">
-          Backend stub: pipeline is simulated locally.
-        </PText>
+        </Button>
+        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
+          Pipeline is simulated locally until the backend connects.
+        </LabelXSmall>
       </div>
     </form>
   );

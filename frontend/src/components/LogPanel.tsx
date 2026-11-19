@@ -1,6 +1,5 @@
 import type { LogLine } from "@/mocks/deployments";
 import { useEffect, useRef } from "react";
-import { PText } from "@porsche-design-system/components-react";
 
 export function LogPanel({ lines, minHeight }: { lines: LogLine[]; minHeight?: string }) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -11,32 +10,23 @@ export function LogPanel({ lines, minHeight }: { lines: LogLine[]; minHeight?: s
 
   return (
     <div
-      className="implode-log-panel p-fluid-sm shadow-md"
-      style={{ minHeight: minHeight ?? "22rem" }}
+      className="implode-log-panel"
+      style={{ minHeight: minHeight ?? "22rem", padding: "16px" }}
       role="log"
       aria-label="Deployment logs"
     >
-      <div className="flex max-h-[26rem] flex-col gap-static-xs overflow-y-auto">
+      <div className="implode-log-panel-inner" style={{ maxHeight: "26rem" }}>
         {lines.length === 0 ? (
-          <PText color="inherit" size="x-small">
-            <span style={{ color: "var(--implode-log-dim)" }}>
-              Waiting for output…
-            </span>
-          </PText>
+          <span className="implode-log-dim">Waiting for output…</span>
         ) : (
           lines.map((l) => (
-            <div key={l.id} className="text-[0.8rem] leading-relaxed">
-              <span style={{ color: "var(--implode-log-dim)" }}>[{l.at}]</span>{" "}
-              <span
-                style={{
-                  color:
-                    l.stream === "build"
-                      ? "var(--implode-log-text)"
-                      : l.stream === "runtime"
-                        ? "#9be29b"
-                        : "var(--implode-log-dim)",
-                }}
-              >
+            <div key={l.id}>
+              <span className="implode-log-dim">[{l.at}]</span>{" "}
+              <span className={
+                l.stream === "runtime" ? "implode-log-runtime"
+                : l.stream === "build" ? "implode-log-build"
+                : "implode-log-system"
+              }>
                 {l.text}
               </span>
             </div>
