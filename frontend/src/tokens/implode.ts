@@ -1,13 +1,9 @@
 /**
- * Implode semantic tokens — built on top of the Porsche Design System v4.
+ * Implode semantic tokens — built on Uber Base Web (baseui).
  *
- * Rule: no raw hex/hsl in components. Import from here (JS) or use the
- * matching `var(--implode-…)` custom property / PDS Tailwind utility (CSS).
- *
- * Status → PDS `PTag` variant mapping lives here so pipeline stages,
+ * Status → baseui `Tag` kind mapping lives here so pipeline stages,
  * deployment states, and health indicators stay consistent everywhere.
  */
-import type { TagVariant } from "@porsche-design-system/components-react";
 
 export type DeploymentStatus =
   | "pending"
@@ -21,22 +17,25 @@ export type DeploymentStatus =
 
 export type HealthState = "healthy" | "degraded" | "unhealthy" | "unknown";
 
-export const statusTagVariant: Record<DeploymentStatus, TagVariant> = {
-  pending: "secondary",
-  cloning: "info",
-  detecting: "info-frosted",
-  building: "info",
-  running: "info-frosted",
-  succeeded: "success",
-  failed: "error",
-  stopped: "secondary",
+/** baseui Tag kinds */
+export type TagKind = "accent" | "blue" | "green" | "red" | "orange" | "gray" | "black";
+
+export const statusTagKind: Record<DeploymentStatus, TagKind> = {
+  pending: "gray",
+  cloning: "blue",
+  detecting: "blue",
+  building: "accent",
+  running: "blue",
+  succeeded: "green",
+  failed: "red",
+  stopped: "gray",
 };
 
-export const healthTagVariant: Record<HealthState, TagVariant> = {
-  healthy: "success",
-  degraded: "warning",
-  unhealthy: "error",
-  unknown: "secondary",
+export const healthTagKind: Record<HealthState, TagKind> = {
+  healthy: "green",
+  degraded: "orange",
+  unhealthy: "red",
+  unknown: "gray",
 };
 
 export const pipelineStages = [
@@ -56,13 +55,10 @@ export const pipelineStageLabel: Record<PipelineStage, string> = {
 };
 
 export const implodeLayout = {
-  /** Content column — matches PDS admin-panel template rhythm. */
   contentMaxWidth: "76rem",
-  /** The one memorable surface: the terminal log panel. */
   logPanelMinHeight: "22rem",
 } as const;
 
 export const implodeTiming = {
-  /** Simulated pipeline tick for the stubbed (backend-less) flow. */
   stubStageMs: 1400,
 } as const;

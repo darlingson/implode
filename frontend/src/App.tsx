@@ -1,20 +1,19 @@
+import { useStyletron } from "baseui";
+import { Button } from "baseui/button";
+import { Drawer, ANCHOR } from "baseui/drawer";
+import { Notification } from "baseui/notification";
+import { Tag } from "baseui/tag";
 import {
-  PBanner,
-  PButton,
-  PCrest,
-  PDivider,
-  PHeading,
-  PInlineNotification,
-  PLinkPure,
-  PTabsBar,
-  PTag,
-  PText,
-  PWordmark,
-} from "@porsche-design-system/components-react";
+  DisplaySmall,
+  DisplayXSmall,
+  LabelMedium,
+  LabelSmall,
+  LabelXSmall,
+  ParagraphSmall,
+} from "baseui/typography";
 import { useMemo, useState } from "react";
 import { AppsMonitor } from "@/components/AppsMonitor";
 import { DeployForm } from "@/components/DeployForm";
-import { LogPanel } from "@/components/LogPanel";
 import { PipelineView } from "@/components/PipelineView";
 import {
   makeLog,
@@ -24,37 +23,47 @@ import {
   type DeployRequest,
   type Deployment,
 } from "@/mocks/deployments";
-import { healthTagVariant, statusTagVariant } from "@/tokens/implode";
+import { statusTagKind } from "@/tokens/implode";
 
-type View = "deploy" | "pipeline" | "apps";
-
-const viewIndex: Record<View, number> = { deploy: 0, pipeline: 1, apps: 2 };
-const indexView: View[] = ["deploy", "pipeline", "apps"];
+type Page = "deployments" | "applications";
 
 let idSeq = 100;
 
 export function App() {
-  const [view, setView] = useState<View>("deploy");
+  const [css, theme] = useStyletron();
+
+  // Top-level page (the two persistent nav destinations)
+  const [page, setPage] = useState<Page>("deployments");
+
+  // Which deployment is open in the detail view (null = list)
+  const [detailId, setDetailId] = useState<string | null>(null);
+
+  // Deploy drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Data
   const [deployments, setDeployments] = useState<Deployment[]>(() => [
     seedFailedDeployment(),
   ]);
   const [apps, setApps] = useState<DeployedApp[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const active = useMemo(
-    () => deployments.find((d) => d.id === activeId) ?? null,
-    [deployments, activeId],
+  const detail = useMemo(
+    () => deployments.find((d) => d.id === detailId) ?? null,
+    [deployments, detailId],
   );
 
+  // ── helpers ──────────────────────────────────────────────────────
+
   const copyUrl = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      /* clipboard unavailable in some contexts — still show the URL */
-    }
+    try { await navigator.clipboard.writeText(url); } catch { /* ok */ }
     setNotice(`Copied: ${url}`);
+  };
+
+  const openDetail = (id: string) => {
+    setDetailId(id);
+    setPage("deployments"); // ensure we're on the right page
   };
 
   const startDeploy = (req: DeployRequest) => {
@@ -63,257 +72,348 @@ export function App() {
     const id = `dpl_stub_${idSeq}`;
     const port = 5200 + (idSeq % 90);
     const dep: Deployment = {
-      id,
-      repoUrl: req.repoUrl,
-      repoSlug: slug,
-      subfolder: req.subfolder || "—",
-      branch: req.branch,
-      status: "building",
-      failingStage: null,
+      id, repoUrl: req.repoUrl, repoSlug: slug,
+      subfolder: req.subfolder || "—", branch: req.branch,
+      status: "building", failingStage: null,
       imageTag: `implode/${slug}:stub${idSeq}`,
-      containerId: null,
-      hostPort: port,
+      containerId: null, hostPort: port,
       appUrl: `http://localhost:${port}`,
-      health: "unknown",
-      sdkVersion: null,
-      createdAt: "just now",
+      health: "unknown", sdkVersion: null, createdAt: "just now",
       logs: [
         makeLog("system", `▸ deploy requested: ${req.repoUrl}`),
-        makeLog(
-          "system",
-          `▸ subfolder=${req.subfolder || "(root)"} branch=${req.branch} env=${req.envVars.length}`,
-        ),
+        makeLog("system", `▸ subfolder=${req.subfolder || "(root)"} branch=${req.branch} env=${req.envVars.length}`),
       ],
     };
     setDeployments((prev) => [dep, ...prev]);
-    setActiveId(id);
     setBusy(true);
-    setView("pipeline");
-    window.setTimeout(() => setBusy(false), 600);
+    window.setTimeout(() => {
+      setBusy(false);
+      setDrawerOpen(false);
+      openDetail(id);
+    }, 400);
   };
 
   const finishDeploy = (done: Deployment) => {
     setDeployments((prev) => prev.map((d) => (d.id === done.id ? done : d)));
     setApps((prev) => {
       if (prev.some((a) => a.deploymentId === done.id)) return prev;
-      return [
-        {
-          id: `app_${done.id}`,
-          name: done.repoSlug,
-          deploymentId: done.id,
-          status: "succeeded",
-          health: "healthy",
-          hostPort: done.hostPort ?? 5281,
-          appUrl: done.appUrl ?? "http://localhost:5281",
-          imageTag: done.imageTag,
-          updatedAt: "just now",
-        },
-        ...prev,
-      ];
+      return [{
+        id: `app_${done.id}`, name: done.repoSlug,
+        deploymentId: done.id, status: "succeeded", health: "healthy",
+        hostPort: done.hostPort ?? 5281,
+        appUrl: done.appUrl ?? "http://localhost:5281",
+        imageTag: done.imageTag, updatedAt: "just now",
+      }, ...prev];
     });
   };
 
   const appAction = (appId: string, action: "stop" | "restart" | "redeploy") => {
-    setApps((prev) =>
-      prev.map((a) =>
-        a.id === appId
-          ? {
-              ...a,
-              status:
-                action === "stop"
-                  ? "stopped"
-                  : action === "restart"
-                    ? "running"
-                    : "building",
-              health: action === "stop" ? "unknown" : "healthy",
-              updatedAt: "just now",
-            }
-          : a,
-      ),
-    );
+    setApps((prev) => prev.map((a) => a.id === appId ? {
+      ...a,
+      status: action === "stop" ? "stopped" : action === "restart" ? "running" : "building",
+      health: action === "stop" ? "unknown" : "healthy",
+      updatedAt: "just now",
+    } : a));
     setNotice(
-      action === "stop"
-        ? "Container stop requested (stub)."
-        : action === "restart"
-          ? "Container restart requested (stub)."
-          : "Redeploy queued: pull → rebuild → replace (stub).",
+      action === "stop" ? "Container stop requested."
+      : action === "restart" ? "Container restart requested."
+      : "Redeploy queued: pull → rebuild → replace.",
     );
   };
 
-  const empty = deployments.length === 0;
+  // ── shared style values ──────────────────────────────────────────
+
+  const navLinkStyle = (active: boolean) => css({
+    background: "none", border: "none", cursor: "pointer",
+    fontFamily: "inherit", fontSize: "14px", fontWeight: "500",
+    padding: `${theme.sizing.scale300} 0`,
+    color: active ? theme.colors.contentPrimary : theme.colors.contentSecondary,
+    borderBottom: active ? `2px solid ${theme.colors.contentPrimary}` : "2px solid transparent",
+    textDecoration: "none",
+    transition: "color 0.15s, border-color 0.15s",
+    ":hover": { color: theme.colors.contentPrimary },
+  });
+
+  const card = css({
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: theme.borders.radius400,
+    border: `1px solid ${theme.colors.borderOpaque}`,
+  });
+
+  // ── render ───────────────────────────────────────────────────────
 
   return (
-    <div className="scheme-light-dark min-h-svh bg-canvas text-primary">
-      {/* Top bar */}
-      <header className="border-b border-contrast-low">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-static-sm px-fluid-sm py-fluid-xs">
-          <div className="flex items-center gap-static-sm">
-            <PCrest style={{ width: 36, height: 45 }} />
-            <div>
-              <PHeading size="medium" tag="h1">
-                Implode
-              </PHeading>
-              <PText color="contrast-medium" size="x-small">
-                Self-hosted .NET deployments
-              </PText>
+    <div className={css({
+      minHeight: "100vh",
+      backgroundColor: theme.colors.backgroundPrimary,
+      color: theme.colors.contentPrimary,
+    })}>
+
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <header className={css({
+        borderBottom: `1px solid ${theme.colors.borderOpaque}`,
+        backgroundColor: theme.colors.backgroundPrimary,
+        position: "sticky", top: "0", zIndex: "100",
+      })}>
+        <div className={css({
+          maxWidth: "1200px", margin: "0 auto",
+          display: "flex", alignItems: "center",
+          gap: theme.sizing.scale700,
+          padding: `0 ${theme.sizing.scale800}`,
+          height: "56px",
+        })}>
+
+          {/* Wordmark — always a link back to home */}
+          <button
+            onClick={() => { setPage("deployments"); setDetailId(null); }}
+            className={css({
+              display: "flex", alignItems: "center", gap: theme.sizing.scale400,
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              flexShrink: "0",
+            })}
+          >
+            <div className={css({
+              width: "28px", height: "28px",
+              backgroundColor: theme.colors.contentPrimary,
+              borderRadius: "6px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            })}>
+              <span className={css({
+                color: theme.colors.backgroundPrimary,
+                fontWeight: "800", fontSize: "15px", lineHeight: "1",
+              })}>I</span>
             </div>
-            <PTag variant="secondary">stub</PTag>
-          </div>
-          <div className="flex items-center gap-static-md">
-            <PWordmark style={{ width: 120 }} />
-            <PLinkPure href="http://localhost:8080/healthz">
-              Backend: /healthz
-            </PLinkPure>
+            <LabelMedium overrides={{ Block: { style: { fontWeight: "700", letterSpacing: "-0.01em", margin: 0 } } }}>
+              Implode
+            </LabelMedium>
+          </button>
+
+          {/* Nav links */}
+          <nav className={css({ display: "flex", alignItems: "stretch", gap: theme.sizing.scale700, flex: "1", height: "100%" })}>
+            <button
+              className={navLinkStyle(page === "deployments")}
+              onClick={() => { setPage("deployments"); setDetailId(null); }}
+            >
+              Deployments
+            </button>
+            <button
+              className={navLinkStyle(page === "applications")}
+              onClick={() => setPage("applications")}
+            >
+              Applications
+              {apps.length > 0 && (
+                <span className={css({
+                  marginLeft: theme.sizing.scale200,
+                  backgroundColor: theme.colors.backgroundTertiary,
+                  color: theme.colors.contentSecondary,
+                  borderRadius: "10px",
+                  padding: "1px 7px",
+                  fontSize: "11px", fontWeight: "600",
+                })}>
+                  {apps.length}
+                </span>
+              )}
+            </button>
+          </nav>
+
+          {/* Actions */}
+          <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale400, marginLeft: "auto" })}>
+            <a href="http://localhost:8080/healthz" className={css({
+              fontSize: "12px", color: theme.colors.contentTertiary,
+              textDecoration: "none", fontFamily: "ui-monospace, monospace",
+              ":hover": { color: theme.colors.contentPrimary },
+            })}>
+              /healthz
+            </a>
+            <Button size="compact" onClick={() => setDrawerOpen(true)}>
+              New deployment
+            </Button>
           </div>
         </div>
       </header>
 
-      {notice ? (
-        <div className="mx-auto max-w-6xl px-fluid-sm pt-fluid-xs">
-          <PBanner
-            heading="Done"
-            description={notice}
-            state="success"
-            open
-            onDismiss={() => setNotice(null)}
-          />
+      {/* ── Global notice ───────────────────────────────────────── */}
+      {notice && (
+        <div className={css({ maxWidth: "1200px", margin: "0 auto", padding: `${theme.sizing.scale400} ${theme.sizing.scale800} 0` })}>
+          <Notification kind="positive" closeable onClose={() => setNotice(null)}
+            overrides={{ Body: { style: { width: "100%", fontFamily: "inherit" } } }}
+          >
+            {notice}
+          </Notification>
         </div>
-      ) : null}
+      )}
 
-      {/* Nav */}
-      <nav className="mx-auto max-w-6xl px-fluid-sm">
-        <PTabsBar
-          activeTabIndex={viewIndex[view]}
-          onUpdate={(e) => {
-            const idx = (e as CustomEvent<{ activeTabIndex: number }>).detail
-              .activeTabIndex;
-            setView(indexView[idx] ?? "deploy");
-          }}
-        >
-          <button type="button">New deployment</button>
-          <button type="button">Pipeline{active ? ` · ${active.repoSlug}` : ""}</button>
-          <button type="button">Applications ({apps.length})</button>
-        </PTabsBar>
-      </nav>
+      {/* ── Main content ────────────────────────────────────────── */}
+      <main className={css({
+        maxWidth: "1200px", margin: "0 auto",
+        padding: `${theme.sizing.scale800} ${theme.sizing.scale800}`,
+      })}>
 
-      <main className="mx-auto grid max-w-6xl gap-fluid-md px-fluid-sm py-fluid-sm">
-        {view === "deploy" ? (
-          <>
-            {empty ? (
-              <div className="grid gap-fluid-xs rounded-3xl bg-surface p-fluid-lg text-center">
-                <PHeading size="x-large" tag="h2">
-                  No repositories yet
-                </PHeading>
-                <PText color="contrast-medium">
-                  Paste a .NET Git URL below and Implode takes it from clone to
-                  running container.
-                </PText>
-              </div>
-            ) : null}
-
-            <DeployForm busy={busy} onDeploy={startDeploy} />
-
-            <section className="grid gap-fluid-xs">
-              <PHeading size="medium" tag="h2">
-                Deployment history
-              </PHeading>
-              {deployments.map((d) => (
-                <article
-                  key={d.id}
-                  className="grid gap-static-sm rounded-3xl bg-surface p-fluid-sm"
+        {/* DEPLOYMENTS page */}
+        {page === "deployments" && (
+          detailId && detail ? (
+            /* ── Detail view ── */
+            <div className={css({ display: "grid", gap: theme.sizing.scale600 })}>
+              {/* Back breadcrumb */}
+              <div>
+                <button
+                  onClick={() => setDetailId(null)}
+                  className={css({
+                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: theme.sizing.scale200,
+                    color: theme.colors.contentTertiary, fontFamily: "inherit",
+                    fontSize: "13px", padding: 0,
+                    ":hover": { color: theme.colors.contentPrimary },
+                  })}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-static-sm">
-                    <div>
-                      <PText weight="semibold">{d.repoSlug}</PText>
-                      <PText color="contrast-medium" size="x-small">
-                        {d.repoUrl} · {d.branch} · {d.createdAt} ·{" "}
-                        {d.imageTag}
-                      </PText>
-                    </div>
-                    <div className="flex items-center gap-static-sm">
-                      <PTag variant={statusTagVariant[d.status]}>{d.status}</PTag>
-                      <PTag variant={healthTagVariant[d.health]}>{d.health}</PTag>
-                    </div>
-                  </div>
-                  {d.status === "failed" ? (
-                    <PInlineNotification
-                      heading={`Failed in ${d.failingStage ?? "pipeline"}`}
-                      state="error"
-                    >
-                      Showing the last {d.logs.length} retained log lines —
-                      matches the future failure contract.
-                    </PInlineNotification>
-                  ) : null}
-                  <LogPanel lines={d.logs.slice(-4)} minHeight="8rem" />
-                  <div className="flex flex-wrap gap-static-sm">
-                    <PButton
-                      variant="secondary"
-                      compact
-                      onClick={() => {
-                        setActiveId(d.id);
-                        setView("pipeline");
-                      }}
-                    >
-                      Open pipeline
-                    </PButton>
-                    <PButton
-                      variant="secondary"
-                      compact
-                      onClick={() => setView("apps")}
-                    >
-                      View applications
-                    </PButton>
-                  </div>
-                </article>
-              ))}
-            </section>
-          </>
-        ) : null}
-
-        {view === "pipeline" ? (
-          active ? (
-            <PipelineView
-              key={active.id}
-              deployment={active}
-              onDone={finishDeploy}
-              onCopyUrl={copyUrl}
-            />
-          ) : (
-            <div className="grid gap-fluid-xs rounded-3xl bg-surface p-fluid-lg text-center">
-              <PHeading size="large" tag="h2">
-                No active deployment
-              </PHeading>
-              <PText color="contrast-medium">
-                Start from the deploy form — the live pipeline stub appears here.
-              </PText>
-              <div className="flex justify-center">
-                <PButton onClick={() => setView("deploy")}>New deployment</PButton>
+                  ← Deployments
+                </button>
               </div>
+              <PipelineView
+                key={detail.id}
+                deployment={detail}
+                onDone={finishDeploy}
+                onCopyUrl={copyUrl}
+              />
+            </div>
+          ) : (
+            /* ── Deployments list ── */
+            <div className={css({ display: "grid", gap: theme.sizing.scale600 })}>
+              {/* Page header */}
+              <div className={css({
+                display: "flex", alignItems: "center",
+                justifyContent: "space-between", flexWrap: "wrap",
+                gap: theme.sizing.scale400,
+              })}>
+                <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
+                  Deployments
+                </DisplayXSmall>
+              </div>
+
+              {/* Empty state */}
+              {deployments.length === 0 ? (
+                <div className={css({
+                  ...Object.fromEntries(Object.entries({
+                    backgroundColor: theme.colors.backgroundSecondary,
+                    border: `1px solid ${theme.colors.borderOpaque}`,
+                    borderRadius: theme.borders.radius400,
+                    padding: `${theme.sizing.scale1600} ${theme.sizing.scale800}`,
+                    textAlign: "center",
+                    display: "grid",
+                    gap: theme.sizing.scale400,
+                  }))
+                })}>
+                  <DisplaySmall>No deployments yet</DisplaySmall>
+                  <ParagraphSmall color={theme.colors.contentSecondary}>
+                    Click <strong>New deployment</strong> to deploy your first .NET repository.
+                  </ParagraphSmall>
+                </div>
+              ) : (
+                /* Deployment rows */
+                <div className={card}>
+                  {deployments.map((d, i) => (
+                    <div
+                      key={d.id}
+                      className={css({
+                        display: "flex", flexWrap: "wrap",
+                        alignItems: "center", justifyContent: "space-between",
+                        gap: theme.sizing.scale400,
+                        padding: `${theme.sizing.scale500} ${theme.sizing.scale600}`,
+                        borderBottom: i < deployments.length - 1
+                          ? `1px solid ${theme.colors.borderOpaque}` : "none",
+                        cursor: "pointer",
+                        ":hover": { backgroundColor: theme.colors.backgroundTertiary },
+                        transition: "background-color 0.1s",
+                        borderRadius: i === 0 ? `${theme.borders.radius400} ${theme.borders.radius400} 0 0`
+                          : i === deployments.length - 1 ? `0 0 ${theme.borders.radius400} ${theme.borders.radius400}`
+                          : "0",
+                      })}
+                      onClick={() => openDetail(d.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === "Enter" && openDetail(d.id)}
+                    >
+                      {/* Left: identity */}
+                      <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale500, minWidth: 0 })}>
+                        {/* Status dot */}
+                        <div className={css({
+                          width: "8px", height: "8px", borderRadius: "50%", flexShrink: "0",
+                          backgroundColor:
+                            d.status === "succeeded" ? theme.colors.backgroundPositive
+                            : d.status === "failed" ? theme.colors.backgroundNegative
+                            : d.status === "building" || d.status === "cloning" ? theme.colors.accent
+                            : theme.colors.backgroundTertiary,
+                        })} />
+                        <div className={css({ minWidth: 0 })}>
+                          <LabelMedium overrides={{ Block: { style: { fontWeight: "600", margin: 0 } } }}>
+                            {d.repoSlug}
+                          </LabelMedium>
+                          <LabelXSmall overrides={{ Block: { style: {
+                            color: theme.colors.contentTertiary, margin: 0,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          } } }}>
+                            {d.repoUrl} · {d.branch}
+                          </LabelXSmall>
+                        </div>
+                      </div>
+
+                      {/* Right: metadata + status */}
+                      <div className={css({ display: "flex", alignItems: "center", gap: theme.sizing.scale500, flexShrink: "0" })}>
+                        <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
+                          {d.createdAt}
+                        </LabelXSmall>
+                        <Tag kind={statusTagKind[d.status]} closeable={false}>{d.status}</Tag>
+                        {d.status === "failed" && (
+                          <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentNegative } } }}>
+                            failed in {d.failingStage}
+                          </LabelXSmall>
+                        )}
+                        <LabelSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary } } }}>
+                          →
+                        </LabelSmall>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
-        ) : null}
+        )}
 
-        {view === "apps" ? (
+        {/* APPLICATIONS page */}
+        {page === "applications" && (
           <AppsMonitor
             apps={apps}
             deployments={deployments}
             onAction={appAction}
             onCopyUrl={copyUrl}
           />
-        ) : null}
-
-        <PDivider />
-        <footer className="flex flex-wrap items-center justify-between gap-static-sm pb-fluid-md">
-          <PText color="contrast-medium" size="x-small">
-            Frontend stub · Porsche Design System v4 · backend contract:{" "}
-            pending → cloning → detecting → building → running → succeeded /
-            failed
-          </PText>
-          <PText color="contrast-medium" size="x-small">
-            Tokens: src/tokens · Mocks: src/mocks
-          </PText>
-        </footer>
+        )}
       </main>
+
+      {/* ── New deployment Drawer ───────────────────────────────── */}
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        anchor={ANCHOR.right}
+        overrides={{
+          Root: { style: { zIndex: "200" } },
+          DrawerBody: { style: { padding: "0", margin: "0" } },
+          DrawerContainer: { style: { width: "520px", maxWidth: "95vw" } },
+        }}
+      >
+        <div className={css({ padding: theme.sizing.scale800, display: "grid", gap: theme.sizing.scale600 })}>
+          <div>
+            <DisplayXSmall overrides={{ Block: { style: { margin: 0, letterSpacing: "-0.02em" } } }}>
+              New deployment
+            </DisplayXSmall>
+            <LabelXSmall overrides={{ Block: { style: { color: theme.colors.contentTertiary, marginTop: theme.sizing.scale200 } } }}>
+              Paste a Git repository URL and Implode handles the rest.
+            </LabelXSmall>
+          </div>
+          <DeployForm busy={busy} onDeploy={startDeploy} inDrawer />
+        </div>
+      </Drawer>
     </div>
   );
 }

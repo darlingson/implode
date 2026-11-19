@@ -16,6 +16,7 @@ import (
 
 	"github.com/darlingson/implode/frontend"
 	"github.com/darlingson/implode/internal/config"
+	"github.com/darlingson/implode/internal/deploy"
 )
 
 func main() {
@@ -51,6 +52,34 @@ func run(cfg *config.Config, dist fs.FS) error {
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	deployer := deploy.New(cfg.WorkDir)
+	api := router.Group("/api")
+	api.POST("/deploy", func(c *gin.Context) {
+		var req deploy.Request
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON: " + err.Error()})
+			return
+		}
+		job, err := deployer.Start(req)
+		if err != nil {
+			if errors.Is(err, deploy.ErrInProgress) {
+				c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, gin.H{"id": job.ID})
+	})
+	api.GET("/deployments/:id", func(c *gin.Context) {
+		job, ok := deployer.Get(c.Param("id"))
+		if !ok {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.JSON(http.StatusOK, job)
 	})
 
 	// Anything not matching a registered route falls through to the SPA.
